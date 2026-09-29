@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""从 wx_*.json 生成自包含 HTML 速查页：国庆江浙无雨城市速查.html（覆盖江苏/安徽/浙江/福建）"""
+"""从 wx_*.json 生成自包含 index.html 速查页（覆盖江苏/安徽/浙江/福建）"""
 import json, glob, datetime
 
 DATES = ["2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05"]
@@ -77,7 +77,7 @@ per_prov = {pv: {"n": sum(1 for s in data if s["prov"] == pv),
 print("省份统计:", {k: (v["dry"], "/", v["n"]) for k, v in per_prov.items()})
 
 headers = "".join(
-    f'<th>{dt[5:].replace("-", "/")}<br><small>{WEEK[datetime.date.fromisoformat(dt).weekday()]}</small></th>'
+    f'<th>{dt}<br><small>{WEEK[datetime.date.fromisoformat(dt).weekday()]}</small></th>'
     for dt in DATES)
 
 daycards = []
@@ -90,7 +90,7 @@ for i, dt in enumerate(DATES):
         wchips = "".join(f'<span class="chip b">{n}</span>' for n in wetc) or '<span class="mut">—</span>'
         secs.append(f'<p class="lbl">{PROV_SHORT[pv]} ☀️无雨 {len(dryc)} · 🌧️有雨 {len(wetc)}</p>'
                     f'<div>{dchips}<span class="sep"></span>{wchips}</div>')
-    daycards.append(f'<div class="daycard"><h3>{dt[5:].replace("-", "/")} {WEEK[datetime.date.fromisoformat(dt).weekday()]}（白天）</h3>'
+    daycards.append(f'<div class="daycard"><h3>{dt} {WEEK[datetime.date.fromisoformat(dt).weekday()]}（白天）</h3>'
                     + "".join(secs) + '</div>')
 
 dry_hero = "".join(
@@ -119,7 +119,7 @@ html = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>国庆无雨城市速查 · 江浙皖闽 10月2-5日</title>
+<title>国庆无雨城市速查 · 江浙皖闽 2026-10-02 ~ 2026-10-05</title>
 <style>
 :root{--ink:#1c2733;--mut:#6b7a89;--line:#e3e9ef;--bg:#f6f8fa;--green:#0e9f6e;--greenbg:#e6f7f0;--blue:#3b82c4;--bluebg:#e9f2fb;--graybg:#eef1f5}
 *{box-sizing:border-box}
@@ -176,7 +176,7 @@ tr.dry td:first-child{box-shadow:inset 3px 0 0 var(--green)}
 </head>
 <body>
 <div class="wrap">
-  <h1>🌧️→☀️ 国庆无雨城市速查 · 江浙皖闽（10月2日–10月5日）</h1>
+  <h1>🌧️→☀️ 国庆无雨城市速查 · 江浙皖闽（2026-10-02 ~ 2026-10-05）</h1>
   <div class="sub">
     数据源：<a href="https://www.nmc.cn" target="_blank">中央气象台 nmc.cn</a> 7 天预报 · 预报发布 __PUBLISH__ · 页面生成 __GEN__ ·
     覆盖__PROVLINE__共 __TOTAL__ 站（地级市 __PREFN__ 个）<br>
@@ -185,12 +185,12 @@ tr.dry td:first-child{box-shadow:inset 3px 0 0 var(--green)}
 
   <div class="cards">
     <div class="card"><b>__TOTAL__</b><span>站点总数（__PROVLINE__）</span></div>
-    <div class="card green"><b>__DRYN__</b><span>10/2–10/5 白天全程无雨</span></div>
+    <div class="card green"><b>__DRYN__</b><span>2026-10-02 ~ 2026-10-05 白天全程无雨</span></div>
     __KPIPROV__
   </div>
 
   <div class="hero">
-    <h2>✅ 白天全程无雨名单（10月2日–5日）</h2>
+    <h2>✅ 白天全程无雨名单（2026-10-02 ~ 2026-10-05）</h2>
     <div class="heroitems">__DRYHERO__</div>
     <p class="sub" style="margin:10px 0 0">备注：__STRICTNOTE__</p>
   </div>
@@ -226,7 +226,7 @@ tr.dry td:first-child{box-shadow:inset 3px 0 0 var(--green)}
     <b>图例</b>：☀️晴 ⛅多云 ☁️阴 🌦️小雨 🌧️中雨及以上/降水 ⛈️雷阵雨 🌨️雪 🌫️雾/霾；每格为 白天 / 夜间，<span class="n">灰字</span>为夜间天气。<br>
     默认排序：白天无雨在前 → 地级市在前；点击“站点 / 白天有雨 / 累计降水”表头可切换排序。<br>
     “淮安②”为 NMC 列表中与淮安同名的另一站点（名称与页面完全相同，NMC 未标注区分）。<br>
-    预报为 3–6 天时效，雨带边缘落区变数大，建议 10 月 1 日晚在 nmc.cn 复核。重新抓取：运行本目录 fetch_all.py 后再跑 gen_html.py。
+    预报为 3–6 天时效，雨带边缘落区变数大，建议 2026-10-01 晚在 nmc.cn 复核。重新抓取：运行本目录 fetch_all.py 后再跑 gen_html.py。
   </div>
 </div>
 

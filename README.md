@@ -9,7 +9,7 @@
 
 ## 自动维护
 
-GitHub Actions（[refresh.yml](.github/workflows/refresh.yml)）在北京时间每天 08/12/18/22 点自动运行，仅限窗口期 2026-09-29 ~ 10-06：
+GitHub Actions（[refresh.yml](.github/workflows/refresh.yml)）在北京时间每天 08/12/18/22 点自动运行，仅限窗口期 2026-09-29 ~ 2026-10-06：
 
 1. `fetch_all.py` 抓取 308 站最新预报（含重试与本地缓存）
 2. 数据有变化时 `gen_html.py` 重新生成 index.html，自动提交并发布到 Pages
