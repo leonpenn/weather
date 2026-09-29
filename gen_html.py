@@ -116,7 +116,7 @@ kpi_prov = "".join(
     for pv in PROV_ORDER)
 
 DATA_JSON = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
-GEN = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+GEN = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime("%Y-%m-%d %H:%M")  # 北京时间（CI runner 时区为 UTC，直接取会差 8 小时）
 
 html = """<!DOCTYPE html>
 <html lang="zh-CN">
