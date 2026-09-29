@@ -1,0 +1,61 @@
+name: refresh
+
+on:
+  schedule:
+    # 北京时间 08:07 / 12:07 / 18:07 / 22:07，对齐 NMC 预报更新节奏
+    - cron: "7 0,4,10,14 29-30 9 *"
+    - cron: "7 0,4,10,14 1-6 10 *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Date guard（仅国庆窗口期运行）
+        id: guard
+        run: |
+          today=$(TZ=Asia/Shanghai date +%F)
+          if [[ "$today" < "2026-09-29" || "$today" > "2026-10-06" ]]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch latest forecasts
+        if: steps.guard.outputs.run == 'true'
+        run: python fetch_all.py
+
+      - name: Regenerate page if data changed
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          if git diff --quiet -- data/; then
+            echo "NMC 数据无变化，跳过生成"
+          else
+            python gen_html.py
+          fi
+
+      - name: Commit and push
+        if: steps.guard.outputs.run == 'true'
+        run: |
+          git config user.name "leonpenn"
+          git config user.email "leonpenn@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "无变更，跳过提交"
+          else
+            git commit -m "data refresh: $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push
+          fi
