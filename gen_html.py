@@ -155,7 +155,7 @@ h2.sec{font-size:15px;margin:26px 0 10px}
 .filters input{width:150px}
 .filters .cnt{color:var(--mut);font-size:12.5px;margin-left:auto}
 .tablewrap{overflow:auto;max-height:72vh;border:1px solid var(--line);border-radius:12px;background:#fff}
-table{border-collapse:collapse;width:100%;min-width:860px}
+table{border-collapse:separate;border-spacing:0;width:100%;min-width:860px}
 th,td{padding:7px 10px;font-size:13.5px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
 thead th{position:sticky;top:0;background:#eef3f8;font-size:12.5px;z-index:2;box-shadow:inset 0 -1px 0 var(--line)}
 th.sortable{cursor:pointer;user-select:none}
@@ -170,6 +170,12 @@ td.name a:hover{color:var(--blue)}
 td.rain{background:var(--bluebg)}
 tr.dry td{background:#f2fbf6}
 tr.dry td:first-child{box-shadow:inset 3px 0 0 var(--green)}
+/* 站点/省份列固定：110px 为站点列定宽，省份列 left 偏移与其对应 */
+td.name{position:sticky;left:0;z-index:1;background:#fff;width:110px;min-width:110px}
+td.prov{position:sticky;left:110px;z-index:1;background:#fff;width:58px;min-width:58px;box-shadow:inset -1px 0 0 var(--line),3px 0 6px -3px rgba(28,39,51,.18)}
+tr.dry td.name,tr.dry td.prov{background:#f2fbf6}
+thead th.hfix{left:0;z-index:3;width:110px;min-width:110px}
+thead th.prov{left:110px;width:58px;min-width:58px;box-shadow:inset 0 -1px 0 var(--line),inset -1px 0 0 var(--line),3px 0 6px -3px rgba(28,39,51,.18)}
 .foot{color:var(--mut);font-size:12.5px;line-height:1.9;margin-top:18px}
 .mut{color:var(--mut)}
 </style>
@@ -209,8 +215,8 @@ tr.dry td:first-child{box-shadow:inset 3px 0 0 var(--green)}
   <div class="tablewrap">
   <table>
     <thead><tr>
-      <th class="sortable" data-k="name">站点</th>
-      <th>省份</th>
+      <th class="sortable hfix" data-k="name">站点</th>
+      <th class="hfix prov">省份</th>
       <th>类型</th>
       __HEADERS__
       <th class="sortable" data-k="dayRain">白天有雨(天)</th>
@@ -264,7 +270,7 @@ function rowsHTML(){
     const typ = s.pref ? '<span class="tag p">地级市</span>' : '<span class="tag">县级</span>';
     return '<tr class="'+(s.dryAll?"dry":"")+'">'+
       '<td class="name"><a href="'+s.url+'" target="_blank">'+s.name+'</a></td>'+
-      '<td>'+s.prov+'</td><td>'+typ+'</td>'+cells+
+      '<td class="prov">'+s.prov+'</td><td>'+typ+'</td>'+cells+
       '<td>'+(4-s.dayRain)+' / 4</td><td>'+s.precip+' mm</td><td>'+s.lo+'~'+s.hi+'°C</td><td>'+tag+'</td></tr>';
   }).join("");
 }
