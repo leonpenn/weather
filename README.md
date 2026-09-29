@@ -10,7 +10,7 @@
 
 ## 自动维护
 
-GitHub Actions 在北京时间每天 08/12/18/22 点自动运行，仅限窗口期 2026-09-29 ~ 2026-10-06（调整定时或窗口：改 [refresh.yml](.github/workflows/refresh.yml) 里的 `on.schedule.cron`——cron 用 UTC 时间，北京 = UTC+8——并同步改 job 内 Date guard 的窗口日期）：
+GitHub Actions 在北京时间每小时 07 分自动运行，仅限窗口期 2026-09-29 ~ 2026-10-06（调整定时或窗口：改 [refresh.yml](.github/workflows/refresh.yml) 里的 `on.schedule.cron`——cron 用 UTC 时间，北京 = UTC+8——并同步改 job 内 Date guard 的窗口日期）：
 
 1. `fetch_all.py` 抓取 308 站最新预报（每次强制更新；抓取失败时用上次缓存兜底）
 2. 数据有变化时 `gen_html.py` 重新生成 index.html，自动提交并发布到 Pages
