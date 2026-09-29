@@ -8,6 +8,9 @@ WET = ("雨", "雪", "雷", "雹")
 PROV_ORDER = ["江苏", "安徽", "浙江", "福建"]
 PROV_SHORT = {"江苏": "苏", "安徽": "皖", "浙江": "浙", "福建": "闽"}
 PROV_FILES = [("data/ajs.json", "江苏"), ("data/aah.json", "安徽"), ("data/azj.json", "浙江"), ("data/afj.json", "福建")]
+# 淮安在 NMC 清单中有两条同名站点（DXKse/wVmjo，同页面、预报可能不同）；
+# 官网城市页展示 wVmjo 的数据（2026-09-29 核对），故收录 wVmjo，DXKse 不展示
+HIDDEN_STATIONS = {"DXKse"}
 PREF = {
     "南京","无锡","徐州","常州","苏州","南通","连云港","淮安","盐城","扬州","镇江","泰州","宿迁",
     "合肥","芜湖","蚌埠","淮南","马鞍山","淮北","铜陵","安庆","黄山","滁州","阜阳","宿州","六安","亳州","池州","宣城",
@@ -28,6 +31,7 @@ def emoji(info):
 stations, pub = [], ""
 for f, prov_expect in PROV_FILES:
     for s in json.load(open(f, encoding="utf-8")):
+        if s["code"] in HIDDEN_STATIONS: continue
         stations.append({"code": s["code"], "name0": s["city"], "url": s["url"], "prov_expect": prov_expect})
 
 data = []
@@ -58,7 +62,7 @@ have = {s["name"] for s in data if s["pref"]}
 miss = [n for n in sorted(PREF) if n not in have]
 if miss: print("警告: 未匹配到的地级市:", miss)
 
-# 淮安重名站点区分
+# 站点重名时，后者自动加"②"区分
 seen = set()
 for s in data:
     if s["name"] in seen: s["name"] += "②"
@@ -231,7 +235,7 @@ thead th.prov{left:110px;width:58px;min-width:58px;box-shadow:inset 0 -1px 0 var
   <div class="foot">
     <b>图例</b>：☀️晴 ⛅多云 ☁️阴 🌦️小雨 🌧️中雨及以上/降水 ⛈️雷阵雨 🌨️雪 🌫️雾/霾；每格为 白天 / 夜间，<span class="n">灰字</span>为夜间天气。<br>
     默认排序：白天无雨在前 → 地级市在前；点击“站点 / 白天有雨 / 累计降水”表头可切换排序。<br>
-    “淮安②”为 NMC 列表中与淮安同名的另一站点（名称与页面完全相同，NMC 未标注区分）。<br>
+    淮安说明：NMC 清单中”淮安”有两条同名站点（DXKse / wVmjo，同页面、预报可能不同），官网城市页展示 wVmjo 的数据，本页收录该条、DXKse 不展示（2026-09-29 与官网核对）；今后若再现其他重名站点将自动加”②”区分。<br>
     预报为 3–6 天时效，雨带边缘落区变数大，建议 2026-10-01 晚在 nmc.cn 复核。重新抓取：运行本目录 fetch_all.py 后再跑 gen_html.py。
   </div>
 </div>
