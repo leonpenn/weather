@@ -180,9 +180,9 @@ thead th.prov{left:110px;width:58px;min-width:58px;box-shadow:inset 0 -1px 0 var
     <select id="dfrom"></select>
     <span class="rangelbl">至</span>
     <select id="dto"></select>
+    <span class="rangelbl">省份</span>
     <select id="fprov"><option>全部</option></select>
     <select id="fres"><option value="all">全部结论</option><option value="dry">✅ 白天全程无雨</option><option value="r1">☔ 1天有雨</option><option value="r2">☔ 2天有雨</option><option value="r3">☔ ≥3天有雨</option></select>
-    <select id="ftyp"><option value="all">全部类型</option><option value="pref">地级市</option><option value="cty">县级</option></select>
     <input id="fq" placeholder="搜索站点名…">
     <span class="cnt" id="cnt"></span>
   </div>
@@ -208,7 +208,7 @@ const PROVS = ["江苏", "安徽", "浙江", "福建"];
 const PROVSHORT = {"江苏":"苏","安徽":"皖","浙江":"浙","福建":"闽"};
 const PROVIDX = {"江苏":0,"安徽":1,"浙江":2,"福建":3};
 const WEEK = ["周日","周一","周二","周三","周四","周五","周六"];
-const state = {start:DATES[0], end:DATES[DATES.length-1], prov:"全部", res:"all", typ:"all", q:"", sk:null, sd:1};
+const state = {start:DATES[0], end:DATES[DATES.length-1], prov:"全部", res:"all", q:"", sk:null, sd:1};
 const RES = {dry:s=>s.m.dayRain===0, r1:s=>s.m.dayRain===1, r2:s=>s.m.dayRain===2, r3:s=>s.m.dayRain>=3};
 const $ = id => document.getElementById(id);
 
@@ -258,7 +258,6 @@ function rowsHTML(){
     const m = M.get(s);
     return (state.prov==="全部" || s.prov===state.prov) &&
       (state.res==="all" || RES[state.res]({m:m})) &&
-      (state.typ==="all" || (state.typ==="pref" ? s.pref : !s.pref)) &&
       (!q || s.name.includes(q) || s.prov.includes(q));
   });
   const by = {
@@ -357,7 +356,6 @@ $("dto").onchange = e=>{
 $("fprov").innerHTML = '<option>全部</option>' + PROVS.map(p=>'<option>'+p+'</option>').join("");
 $("fprov").onchange = e=>{state.prov=e.target.value; renderBody();};
 $("fres").onchange  = e=>{state.res=e.target.value; renderBody();};
-$("ftyp").onchange  = e=>{state.typ=e.target.value; renderBody();};
 $("fq").oninput     = e=>{state.q=e.target.value; renderBody();};
 recompute(); renderAll();
 </script>
