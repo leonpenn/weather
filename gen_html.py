@@ -166,7 +166,7 @@ thead th.prov{left:110px;width:58px;min-width:58px;box-shadow:inset 0 -1px 0 var
       <select id="dto"></select>
       <span class="hint">对整页所有数字生效，改动后实时重算</span>
     </div><br>
-    快速跳转：<a class="navbtn" href="#hero">✅ 白天全程无雨名单</a><a class="navbtn" href="#sec-days">📅 地级市逐日白天分布</a><a class="navbtn" href="#sec-table">🗂️ 全部站点明细</a>
+    快速跳转：<a class="navbtn" href="#hero">✅ 白天全程无雨名单</a><a class="navbtn" href="#sec-days">📅 逐日白天分布</a><a class="navbtn" href="#sec-table">🗂️ 全部城市明细</a>
   </div>
 
   <div class="cards">
@@ -181,10 +181,10 @@ thead th.prov{left:110px;width:58px;min-width:58px;box-shadow:inset 0 -1px 0 var
     <p class="sub" style="margin:10px 0 0" id="strnote"></p>
   </div>
 
-  <h2 class="sec" id="sec-days">📅 地级市逐日白天分布（标签按省份：苏/皖/浙/闽）</h2>
+  <h2 class="sec" id="sec-days">📅 逐日白天分布（标签按省份：苏/皖/浙/闽）</h2>
   <div class="daygrid" id="daygrid"></div>
 
-  <h2 class="sec" id="sec-table">🗂️ 全部站点明细（__TOTAL__ 站）</h2>
+  <h2 class="sec" id="sec-table">🗂️ 全部城市明细（__TOTAL__ 站）</h2>
   <div class="filters">
     <span class="rangelbl">省份</span>
     <select id="fprov"><option>全部</option></select>
@@ -319,7 +319,7 @@ function renderStats(){
   for(const pv of PROVS){
     const list = dry.filter(s=>s.prov===pv);
     if(!list.length) continue;
-    blocks += '<p class="plbl">'+PROVSHORT[pv]+' '+pv+' · '+list.length+' 站</p><div class="heroitems">'+
+    blocks += '<p class="plbl">'+PROVSHORT[pv]+'('+pv+') · '+list.length+' 站</p><div class="heroitems">'+
       list.map(s=>{
         const m = M.get(s);
         return '<div class="heroitem"><b>'+PROVSHORT[s.prov]+'·'+s.name+'</b><span>'+s.prov+' · '+(s.pref?"地级市":"县级")+'</span>'+
