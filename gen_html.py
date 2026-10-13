@@ -99,6 +99,8 @@ h1{font-size:22px;margin:6px 0 4px}
 .card.green b{color:var(--green)}
 .hero{background:linear-gradient(135deg,#e6f7f0,#e9f2fb);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:16px 0}
 .hero h2{margin:0 0 10px;font-size:15px}
+.plbl{font-size:13px;font-weight:600;color:#0b7d58;margin:12px 0 6px}
+.plbl:first-child{margin-top:0}
 .heroitems{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
 .heroitem{background:#ffffffcc;border-radius:10px;padding:10px 12px}
 .heroitem b{font-size:16px}
@@ -175,7 +177,7 @@ thead th.prov{left:110px;width:58px;min-width:58px;box-shadow:inset 0 -1px 0 var
 
   <div class="hero" id="hero">
     <h2>✅ 白天全程无雨名单（<span id="herorange"></span>）</h2>
-    <div class="heroitems" id="heroitems"></div>
+    <div id="heroitems"></div>
     <p class="sub" style="margin:10px 0 0" id="strnote"></p>
   </div>
 
@@ -295,7 +297,7 @@ function renderBody(){
 function renderStats(){
   const rg = state.start === state.end ? state.start : state.start + " ~ " + state.end;
   $("rglabel").textContent = rg;
-  $("herorange").textContent = rg;
+  $("herorange").textContent = rg + " · 共 " + DATA.filter(s=>M.get(s).dryAll).length + " 站";
   let dryn=0, strict=[], extra=[];
   for(const s of DATA){
     const m = M.get(s);
@@ -311,13 +313,20 @@ function renderStats(){
   $("kpiprov").outerHTML = '<div id="kpiprov" style="display:contents">'+kp+'</div>';
   const dry = DATA.filter(s=>M.get(s).dryAll).sort((a,b)=>{
     const ma=M.get(a), mb=M.get(b);
-    return (a.pref!==b.pref)?(a.pref?-1:1):(PROVIDX[a.prov]-PROVIDX[b.prov])|| (ma.precip-mb.precip) || a.name.localeCompare(b.name,"zh");
+    return (a.pref!==b.pref)?(a.pref?-1:1):(ma.precip-mb.precip) || a.name.localeCompare(b.name,"zh");
   });
-  $("heroitems").innerHTML = dry.length ? dry.map(s=>{
-    const m = M.get(s);
-    return '<div class="heroitem"><b>'+PROVSHORT[s.prov]+'·'+s.name+'</b><span>'+s.prov+' · '+(s.pref?"地级市":"县级")+'</span>'+
-      '<em>'+m.lo+'~'+m.hi+'°C · 累计降水 '+m.precip+' mm</em></div>';
-  }).join("") : '<span class="mut">—</span>';
+  let blocks = "";
+  for(const pv of PROVS){
+    const list = dry.filter(s=>s.prov===pv);
+    if(!list.length) continue;
+    blocks += '<p class="plbl">'+PROVSHORT[pv]+' '+pv+' · '+list.length+' 站</p><div class="heroitems">'+
+      list.map(s=>{
+        const m = M.get(s);
+        return '<div class="heroitem"><b>'+PROVSHORT[s.prov]+'·'+s.name+'</b><span>'+s.prov+' · '+(s.pref?"地级市":"县级")+'</span>'+
+          '<em>'+m.lo+'~'+m.hi+'°C · 累计降水 '+m.precip+' mm</em></div>';
+      }).join("") + '</div>';
+  }
+  $("heroitems").innerHTML = blocks || '<span class="mut">所选范围内暂无白天全程无雨站点</span>';
   const nStrict = DATA.filter(s=>M.get(s).dryStrict).length;
   $("strnote").innerHTML = (nStrict===dryn)
     ? "备注：若把夜间降雨也计入，名单完全相同（"+nStrict+" 站）——所选范围内无“只下夜雨”的站点。"
