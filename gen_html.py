@@ -115,7 +115,9 @@ h2.sec{font-size:15px;margin:26px 0 10px}
 .chip.g{background:var(--greenbg);color:#0b7d58}
 .chip.b{background:var(--bluebg);color:#2a6395}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0 10px;position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:5}
-.filters select,.filters input{padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:13px;color:var(--ink)}
+.filters select,.filters input,.rangepick select,.rangepick input{padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:13px;color:var(--ink)}
+.rangepick{margin:8px 0 2px}
+.rangepick .hint{color:var(--mut);font-size:12px;margin-left:8px}
 .filters input{width:150px}
 .filters .rangelbl{font-size:13px;color:var(--mut)}
 .filters .cnt{color:var(--mut);font-size:12.5px;margin-left:auto}
@@ -155,7 +157,13 @@ thead th.prov{left:110px;width:58px;min-width:58px;box-shadow:inset 0 -1px 0 var
     当前范围：<b id="rglabel">__RANGE0__</b> · 数据源：<a href="https://www.nmc.cn" target="_blank">中央气象台 nmc.cn</a> 7 天预报 · 预报发布 __PUBLISH__ · 页面生成 __GEN__ ·
     覆盖__PROVLINE__共 __TOTAL__ 站（地级市 __PREFN__ 个）<br>
     判定口径：<b>所选日期范围内，白天（08–20时）无雨即算无雨</b>，夜间降雨不影响结论；雨/雪/雷/雹均计为降水，阴/多云/雾/霾不算。
-    范围可选：起始不早于昨日（数据源预报自今日起，若含昨日会自动出现在选项中），截止为预报可提供的最远日期。<br>
+    范围可选：起始不早于昨日（数据源预报自今日起，若含昨日会自动出现在选项中），截止为预报可提供的最远日期。
+    <div class="rangepick"><span class="rangelbl">分析日期范围</span>
+      <select id="dfrom"></select>
+      <span class="rangelbl">至</span>
+      <select id="dto"></select>
+      <span class="hint">对整页所有数字生效，改动后实时重算</span>
+    </div><br>
     快速跳转：<a class="navbtn" href="#hero">✅ 白天全程无雨名单</a><a class="navbtn" href="#sec-days">📅 地级市逐日白天分布</a><a class="navbtn" href="#sec-table">🗂️ 全部站点明细</a>
   </div>
 
@@ -176,10 +184,6 @@ thead th.prov{left:110px;width:58px;min-width:58px;box-shadow:inset 0 -1px 0 var
 
   <h2 class="sec" id="sec-table">🗂️ 全部站点明细（__TOTAL__ 站）</h2>
   <div class="filters">
-    <span class="rangelbl">日期范围</span>
-    <select id="dfrom"></select>
-    <span class="rangelbl">至</span>
-    <select id="dto"></select>
     <span class="rangelbl">省份</span>
     <select id="fprov"><option>全部</option></select>
     <select id="fres"><option value="all">全部结论</option><option value="dry">✅ 白天全程无雨</option><option value="r1">☔ 1天有雨</option><option value="r2">☔ 2天有雨</option><option value="r3">☔ ≥3天有雨</option></select>
