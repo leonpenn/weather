@@ -82,7 +82,7 @@ html = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>无雨城市速查 · 江浙皖闽</title>
+<title>不下雨的旅游目的地 · 江浙皖闽</title>
 <style>
 :root{--ink:#1c2733;--mut:#6b7a89;--line:#e3e9ef;--bg:#f6f8fa;--green:#0e9f6e;--greenbg:#e6f7f0;--blue:#3b82c4;--bluebg:#e9f2fb;--graybg:#eef1f5}
 *{box-sizing:border-box}
@@ -119,6 +119,9 @@ h2.sec{font-size:15px;margin:26px 0 10px}
 .filters input{width:150px}
 .filters .rangelbl{font-size:13px;color:var(--mut)}
 .filters .cnt{color:var(--mut);font-size:12.5px;margin-left:auto}
+.navbtn{display:inline-block;padding:3px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink);text-decoration:none;font-size:12.5px;margin:2px 6px 2px 0}
+.navbtn:hover{color:var(--blue);border-color:var(--blue)}
+[id]{scroll-margin-top:56px}
 .tablewrap{overflow:auto;max-height:72vh;border:1px solid var(--line);border-radius:12px;background:#fff}
 table{border-collapse:separate;border-spacing:0;width:100%;min-width:860px}
 th,td{padding:7px 10px;font-size:13.5px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -147,12 +150,13 @@ thead th.prov{left:110px;width:58px;min-width:58px;box-shadow:inset 0 -1px 0 var
 </head>
 <body>
 <div class="wrap">
-  <h1>🌧️→☀️ 无雨城市速查 · 江浙皖闽</h1>
+  <h1>🌧️→☀️ 不下雨的旅游目的地 · 江浙皖闽</h1>
   <div class="sub">
     当前范围：<b id="rglabel">__RANGE0__</b> · 数据源：<a href="https://www.nmc.cn" target="_blank">中央气象台 nmc.cn</a> 7 天预报 · 预报发布 __PUBLISH__ · 页面生成 __GEN__ ·
     覆盖__PROVLINE__共 __TOTAL__ 站（地级市 __PREFN__ 个）<br>
     判定口径：<b>所选日期范围内，白天（08–20时）无雨即算无雨</b>，夜间降雨不影响结论；雨/雪/雷/雹均计为降水，阴/多云/雾/霾不算。
-    范围可选：起始不早于昨日（数据源预报自今日起，若含昨日会自动出现在选项中），截止为预报可提供的最远日期。
+    范围可选：起始不早于昨日（数据源预报自今日起，若含昨日会自动出现在选项中），截止为预报可提供的最远日期。<br>
+    快速跳转：<a class="navbtn" href="#hero">✅ 白天全程无雨名单</a><a class="navbtn" href="#sec-days">📅 地级市逐日白天分布</a><a class="navbtn" href="#sec-table">🗂️ 全部站点明细</a>
   </div>
 
   <div class="cards">
@@ -161,16 +165,16 @@ thead th.prov{left:110px;width:58px;min-width:58px;box-shadow:inset 0 -1px 0 var
     <div id="kpiprov" style="display:contents"></div>
   </div>
 
-  <div class="hero">
+  <div class="hero" id="hero">
     <h2>✅ 白天全程无雨名单（<span id="herorange"></span>）</h2>
     <div class="heroitems" id="heroitems"></div>
     <p class="sub" style="margin:10px 0 0" id="strnote"></p>
   </div>
 
-  <h2 class="sec">📅 地级市逐日白天分布（标签按省份：苏/皖/浙/闽）</h2>
+  <h2 class="sec" id="sec-days">📅 地级市逐日白天分布（标签按省份：苏/皖/浙/闽）</h2>
   <div class="daygrid" id="daygrid"></div>
 
-  <h2 class="sec">🗂️ 全部站点明细（__TOTAL__ 站）</h2>
+  <h2 class="sec" id="sec-table">🗂️ 全部站点明细（__TOTAL__ 站）</h2>
   <div class="filters">
     <span class="rangelbl">日期范围</span>
     <select id="dfrom"></select>
@@ -237,7 +241,7 @@ function cellHTML(dt,s){
 function buildHead(){
   let h = '<tr><th class="sortable hfix" data-k="name">站点</th><th class="hfix prov">省份</th><th>类型</th>';
   for(const dt of selDates()) h += '<th>'+dt+'<br><small>'+wd(dt)+'</small></th>';
-  h += '<th class="sortable" data-k="dayRain">白天有雨(天)</th><th class="sortable" data-k="precip">累计降水</th><th>温度</th><th>结论</th></tr>';
+  h += '<th class="sortable" data-k="precip">累计降水</th><th>温度</th><th>结论</th></tr>';
   $("thr").innerHTML = h;
   document.querySelectorAll("th.sortable").forEach(th=>{
     const k = th.dataset.k;
@@ -249,7 +253,7 @@ function buildHead(){
   });
 }
 function rowsHTML(){
-  const nd = selDates().length, q = state.q.trim();
+  const q = state.q.trim();
   let list = DATA.filter(s=>{
     const m = M.get(s);
     return (state.prov==="全部" || s.prov===state.prov) &&
@@ -278,7 +282,7 @@ function rowsHTML(){
     return '<tr class="'+(m.dryAll?"dry":"")+'">'+
       '<td class="name"><a href="'+s.url+'" target="_blank">'+s.name+'</a></td>'+
       '<td class="prov">'+s.prov+'</td><td>'+typ+'</td>'+cells+
-      '<td>'+(nd-m.dayRain)+' / '+nd+'</td><td>'+m.precip+' mm</td><td>'+temp+'</td><td>'+tag+'</td></tr>';
+      '<td>'+m.precip+' mm</td><td>'+temp+'</td><td>'+tag+'</td></tr>';
   }).join("");
 }
 function renderBody(){
