@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""从 wx_*.json 生成自包含 index.html 速查页（覆盖江苏/安徽/浙江/福建）"""
-import json, glob, datetime
+"""从 wx_*.json 生成自包含 index.html 速查页（江苏/安徽/浙江/福建）。
+日期范围动态：日期列表取自数据源 7 天预报实际提供的全部日期，
+用户在页面上选择起始/结束日期（起始不早于昨日、截止为预报可提供的最远日期），
+页面在浏览器端按所选范围实时重算无雨结论、名单与统计。"""
+import json, datetime
 
-DATES = ["2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05"]
-WEEK = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 WET = ("雨", "雪", "雷", "雹")
 PROV_ORDER = ["江苏", "安徽", "浙江", "福建"]
 PROV_SHORT = {"江苏": "苏", "安徽": "皖", "浙江": "浙", "福建": "闽"}
@@ -18,49 +19,45 @@ PREF = {
     "福州","厦门","莆田","三明","泉州","漳州","南平","龙岩","宁德",
 }
 
-def emoji(info):
-    if "雷" in info: return "⛈️"
-    if "雪" in info: return "🌨️"
-    if "雨" in info: return "🌦️" if info.startswith("小") else "🌧️"
-    if info == "晴": return "☀️"
-    if info == "多云": return "⛅"
-    if info == "阴": return "☁️"
-    if "雾" in info or "霾" in info or "沙" in info or "尘" in info: return "🌫️"
-    return "☁️"
-
 stations, pub = [], ""
 for f, prov_expect in PROV_FILES:
     for s in json.load(open(f, encoding="utf-8")):
         if s["code"] in HIDDEN_STATIONS: continue
-        stations.append({"code": s["code"], "name0": s["city"], "url": s["url"], "prov_expect": prov_expect})
+        stations.append({"code": s["code"], "url": s["url"], "prov_expect": prov_expect})
 
-data = []
+payloads, all_dates = [], set()
 for s in stations:
     j = json.load(open(f"data/wx_{s['code']}.json", encoding="utf-8"))
     p = j["data"]["predict"]; st = p["station"]
-    pub = max(pub, p.get("publish_time") or "")
-    days = {d["date"]: d for d in p["detail"]}
-    cells, temps, total = [], [], 0.0
-    for dt in DATES:
-        d = days[dt]
-        dn, nt = d["day"]["weather"]["info"], d["night"]["weather"]["info"]
-        dr = any(k in dn for k in WET); nr = any(k in nt for k in WET)
-        total += float(d.get("precipitation") or 0)
-        temps += [int(d["day"]["weather"]["temperature"] or 0), int(d["night"]["weather"]["temperature"] or 0)]
-        cells.append({"dn": dn, "nt": nt, "dr": dr, "nr": nr})
-    name = st["city"]
     assert st["province"].replace("省", "") == s["prov_expect"], \
-        f"省份不符: {name} {st['province']} != {s['prov_expect']}"
-    data.append({"name": name, "prov": st["province"].replace("省", ""), "pref": name in PREF,
-                 "url": "https://www.nmc.cn" + st["url"], "cells": cells,
-                 "dayRain": sum(c["dr"] for c in cells), "dryAll": not any(c["dr"] for c in cells),
-                 "dryStrict": not any(c["dr"] or c["nr"] for c in cells),
-                 "precip": round(total, 1), "lo": min(temps), "hi": max(temps)})
+        f"省份不符: {st['city']} {st['province']} != {s['prov_expect']}"
+    pub = max(pub, p.get("publish_time") or "")
+    for d in p["detail"]:
+        all_dates.add(d["date"])
+    payloads.append((s, p))
 
-# 校验：预期地级市是否都命中
-have = {s["name"] for s in data if s["pref"]}
-miss = [n for n in sorted(PREF) if n not in have]
-if miss: print("警告: 未匹配到的地级市:", miss)
+DATES = sorted(all_dates)
+assert DATES, "数据源未返回任何预报日期"
+
+data = []
+for s, p in payloads:
+    st = p["station"]
+    daymap = {d["date"]: d for d in p["detail"]}
+    cells = {}
+    for dt in DATES:
+        d = daymap.get(dt)
+        if d is None:  # 全国同批次发布，正常不会缺日；兜底跳过
+            continue
+        dn, nt = d["day"]["weather"]["info"], d["night"]["weather"]["info"]
+        td = int(d["day"]["weather"]["temperature"] or 0)
+        tn = int(d["night"]["weather"]["temperature"] or 0)
+        cells[dt] = {"dn": dn, "nt": nt,
+                     "dr": any(k in dn for k in WET), "nr": any(k in nt for k in WET),
+                     "pr": float(d.get("precipitation") or 0),
+                     "td": td if td < 100 else None,   # NMC 缺测时段用 9999 哨兵值填充
+                     "tn": tn if tn < 100 else None}
+    data.append({"name": st["city"], "prov": st["province"].replace("省", ""),
+                 "pref": st["city"] in PREF, "url": "https://www.nmc.cn" + st["url"], "cells": cells})
 
 # 站点重名时，后者自动加"②"区分
 seen = set()
@@ -68,54 +65,16 @@ for s in data:
     if s["name"] in seen: s["name"] += "②"
     seen.add(s["name"])
 
-data.sort(key=lambda s: (not s["dryAll"], not s["pref"], s["dayRain"], s["precip"],
-                         PROV_ORDER.index(s["prov"]) if s["prov"] in PROV_ORDER else 9, s["name"]))
+data.sort(key=lambda s: (PROV_ORDER.index(s["prov"]) if s["prov"] in PROV_ORDER else 9, s["name"]))
 
 total = len(data)
-dry = [s for s in data if s["dryAll"]]
-strict = [s for s in data if s["dryStrict"]]
 pref_n = sum(s["pref"] for s in data)
 per_prov = {pv: {"n": sum(1 for s in data if s["prov"] == pv),
-                 "dry": sum(1 for s in data if s["prov"] == pv and s["dryAll"]),
                  "pref": sum(1 for s in data if s["prov"] == pv and s["pref"])} for pv in PROV_ORDER}
-print("省份统计:", {k: (v["dry"], "/", v["n"]) for k, v in per_prov.items()})
-
-headers = "".join(
-    f'<th>{dt}<br><small>{WEEK[datetime.date.fromisoformat(dt).weekday()]}</small></th>'
-    for dt in DATES)
-
-daycards = []
-for i, dt in enumerate(DATES):
-    secs = []
-    for pv in PROV_ORDER:
-        dryc = [s["name"] for s in data if s["pref"] and s["prov"] == pv and not s["cells"][i]["dr"]]
-        wetc = [s["name"] for s in data if s["pref"] and s["prov"] == pv and s["cells"][i]["dr"]]
-        dchips = "".join(f'<span class="chip g">{n}</span>' for n in dryc) or '<span class="mut">—</span>'
-        wchips = "".join(f'<span class="chip b">{n}</span>' for n in wetc) or '<span class="mut">—</span>'
-        secs.append(f'<p class="lbl">{PROV_SHORT[pv]} ☀️无雨 {len(dryc)} · 🌧️有雨 {len(wetc)}</p>'
-                    f'<div>{dchips}<span class="sep"></span>{wchips}</div>')
-    daycards.append(f'<div class="daycard"><h3>{dt} {WEEK[datetime.date.fromisoformat(dt).weekday()]}（白天）</h3>'
-                    + "".join(secs) + '</div>')
-
-dry_hero = "".join(
-    f'<div class="heroitem"><b>{PROV_SHORT[s["prov"]]}·{s["name"]}</b><span>{s["prov"]} · {"地级市" if s["pref"] else "县级"}</span>'
-    f'<em>{s["lo"]}~{s["hi"]}°C · 累计降水 {s["precip"]} mm</em></div>'
-    for s in dry)
-
-if len(strict) == len(dry):
-    strict_note = f"若把夜间降雨也计入，名单完全相同（{len(strict)} 站）——本次过程为系统性降雨，四省无“只下夜雨”的站点。"
-else:
-    extra = [f'{PROV_SHORT[s["prov"]]}·{s["name"]}' for s in dry if not s["dryStrict"]]
-    strict_note = f"若把夜间降雨也计入，无雨站为 {len(strict)} 站；白天口径下有夜间降雨的 {len(extra)} 站：{'、'.join(extra)}。"
-
-prov_options = "".join(f"<option>{pv}</option>" for pv in PROV_ORDER)
 prov_line = " · ".join(f"{pv} {per_prov[pv]['n']}" for pv in PROV_ORDER)
-kpi_prov = "".join(
-    f'<div class="card{" green" if per_prov[pv]["dry"] else ""}"><b>{per_prov[pv]["dry"]} / {per_prov[pv]["n"]}</b>'
-    f'<span>{pv}无雨站 / 总站（地级市 {per_prov[pv]["pref"]}）</span></div>'
-    for pv in PROV_ORDER)
 
 DATA_JSON = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+DATES_JSON = json.dumps(DATES)
 GEN = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime("%Y-%m-%d %H:%M")  # 北京时间（CI runner 时区为 UTC，直接取会差 8 小时）
 
 html = """<!DOCTYPE html>
@@ -123,7 +82,7 @@ html = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>国庆无雨城市速查 · 江浙皖闽 2026-10-02 ~ 2026-10-05</title>
+<title>无雨城市速查 · 江浙皖闽</title>
 <style>
 :root{--ink:#1c2733;--mut:#6b7a89;--line:#e3e9ef;--bg:#f6f8fa;--green:#0e9f6e;--greenbg:#e6f7f0;--blue:#3b82c4;--bluebg:#e9f2fb;--graybg:#eef1f5}
 *{box-sizing:border-box}
@@ -132,6 +91,7 @@ body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Micr
 h1{font-size:22px;margin:6px 0 4px}
 .sub{color:var(--mut);font-size:13px;line-height:1.7;margin-bottom:16px}
 .sub a{color:var(--blue)}
+.sub b{color:var(--ink)}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin:16px 0}
 .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .card b{font-size:24px;display:block;line-height:1.2}
@@ -157,6 +117,7 @@ h2.sec{font-size:15px;margin:26px 0 10px}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0 10px;position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:5}
 .filters select,.filters input{padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:13px;color:var(--ink)}
 .filters input{width:150px}
+.filters .rangelbl{font-size:13px;color:var(--mut)}
 .filters .cnt{color:var(--mut);font-size:12.5px;margin-left:auto}
 .tablewrap{overflow:auto;max-height:72vh;border:1px solid var(--line);border-radius:12px;background:#fff}
 table{border-collapse:separate;border-spacing:0;width:100%;min-width:860px}
@@ -186,31 +147,36 @@ thead th.prov{left:110px;width:58px;min-width:58px;box-shadow:inset 0 -1px 0 var
 </head>
 <body>
 <div class="wrap">
-  <h1>🌧️→☀️ 国庆无雨城市速查 · 江浙皖闽（2026-10-02 ~ 2026-10-05）</h1>
+  <h1>🌧️→☀️ 无雨城市速查 · 江浙皖闽</h1>
   <div class="sub">
-    数据源：<a href="https://www.nmc.cn" target="_blank">中央气象台 nmc.cn</a> 7 天预报 · 预报发布 __PUBLISH__ · 页面生成 __GEN__ ·
+    当前范围：<b id="rglabel">__RANGE0__</b> · 数据源：<a href="https://www.nmc.cn" target="_blank">中央气象台 nmc.cn</a> 7 天预报 · 预报发布 __PUBLISH__ · 页面生成 __GEN__ ·
     覆盖__PROVLINE__共 __TOTAL__ 站（地级市 __PREFN__ 个）<br>
-    判定口径：<b>白天（08–20时）无雨即算无雨</b>，夜间降雨不影响结论；雨/雪/雷/雹均计为降水，阴/多云/雾/霾不算。
+    判定口径：<b>所选日期范围内，白天（08–20时）无雨即算无雨</b>，夜间降雨不影响结论；雨/雪/雷/雹均计为降水，阴/多云/雾/霾不算。
+    范围可选：起始不早于昨日（数据源预报自今日起，若含昨日会自动出现在选项中），截止为预报可提供的最远日期。
   </div>
 
   <div class="cards">
     <div class="card"><b>__TOTAL__</b><span>站点总数（__PROVLINE__）</span></div>
-    <div class="card green"><b>__DRYN__</b><span>2026-10-02 ~ 2026-10-05 白天全程无雨</span></div>
-    __KPIPROV__
+    <div class="card green"><b id="dryn">–</b><span id="drynl">当前范围白天全程无雨</span></div>
+    <div id="kpiprov" style="display:contents"></div>
   </div>
 
   <div class="hero">
-    <h2>✅ 白天全程无雨名单（2026-10-02 ~ 2026-10-05）</h2>
-    <div class="heroitems">__DRYHERO__</div>
-    <p class="sub" style="margin:10px 0 0">备注：__STRICTNOTE__</p>
+    <h2>✅ 白天全程无雨名单（<span id="herorange"></span>）</h2>
+    <div class="heroitems" id="heroitems"></div>
+    <p class="sub" style="margin:10px 0 0" id="strnote"></p>
   </div>
 
   <h2 class="sec">📅 地级市逐日白天分布（标签按省份：苏/皖/浙/闽）</h2>
-  <div class="daygrid">__DAYCARDS__</div>
+  <div class="daygrid" id="daygrid"></div>
 
   <h2 class="sec">🗂️ 全部站点明细（__TOTAL__ 站）</h2>
   <div class="filters">
-    <select id="fprov"><option>全部</option>__PROVOPTS__</select>
+    <span class="rangelbl">日期范围</span>
+    <select id="dfrom"></select>
+    <span class="rangelbl">至</span>
+    <select id="dto"></select>
+    <select id="fprov"><option>全部</option></select>
     <select id="fres"><option value="all">全部结论</option><option value="dry">✅ 白天全程无雨</option><option value="r1">☔ 1天有雨</option><option value="r2">☔ 2天有雨</option><option value="r3">☔ ≥3天有雨</option></select>
     <select id="ftyp"><option value="all">全部类型</option><option value="pref">地级市</option><option value="cty">县级</option></select>
     <input id="fq" placeholder="搜索站点名…">
@@ -218,104 +184,192 @@ thead th.prov{left:110px;width:58px;min-width:58px;box-shadow:inset 0 -1px 0 var
   </div>
   <div class="tablewrap">
   <table>
-    <thead><tr>
-      <th class="sortable hfix" data-k="name">站点</th>
-      <th class="hfix prov">省份</th>
-      <th>类型</th>
-      __HEADERS__
-      <th class="sortable" data-k="dayRain">白天有雨(天)</th>
-      <th class="sortable" data-k="precip">累计降水</th>
-      <th>温度</th>
-      <th>结论</th>
-    </tr></thead>
+    <thead id="thr"></thead>
     <tbody id="tb"></tbody>
   </table>
   </div>
 
   <div class="foot">
     <b>图例</b>：☀️晴 ⛅多云 ☁️阴 🌦️小雨 🌧️中雨及以上/降水 ⛈️雷阵雨 🌨️雪 🌫️雾/霾；每格为 白天 / 夜间，<span class="n">灰字</span>为夜间天气。<br>
-    默认排序：白天无雨在前 → 地级市在前；点击“站点 / 白天有雨 / 累计降水”表头可切换排序。<br>
-    淮安说明：NMC 清单中”淮安”有两条同名站点（DXKse / wVmjo，同页面、预报可能不同），官网城市页展示 wVmjo 的数据，本页收录该条、DXKse 不展示（2026-09-29 与官网核对）；今后若再现其他重名站点将自动加”②”区分。<br>
-    预报为 3–6 天时效，雨带边缘落区变数大，建议 2026-10-01 晚在 nmc.cn 复核。重新抓取：运行本目录 fetch_all.py 后再跑 gen_html.py。
+    默认排序：当前范围白天无雨在前 → 地级市在前；点击“站点 / 白天有雨 / 累计降水”表头可切换排序。<br>
+    淮安说明：NMC 清单中“淮安”有两条同名站点（DXKse / wVmjo，同页面、预报可能不同），官网城市页展示 wVmjo 的数据，本页收录该条、DXKse 不展示（2026-09-29 与官网核对）；今后若再现其他重名站点将自动加“②”区分。<br>
+    预报最长 7 天时效，雨带边缘落区变数大，出行前一晚在 nmc.cn 复核。重新抓取：运行本目录 fetch_all.py 后再跑 gen_html.py。
   </div>
 </div>
 
 <script>
+const DATES = __DATES__;
 const DATA = __DATA__;
-const state = {prov:"全部", res:"all", typ:"all", q:"", sk:null, sd:1};
-const RES = {dry:s=>s.dayRain===0, r1:s=>s.dayRain===1, r2:s=>s.dayRain===2, r3:s=>s.dayRain>=3};
+const PROVS = ["江苏", "安徽", "浙江", "福建"];
+const PROVSHORT = {"江苏":"苏","安徽":"皖","浙江":"浙","福建":"闽"};
+const PROVIDX = {"江苏":0,"安徽":1,"浙江":2,"福建":3};
+const WEEK = ["周日","周一","周二","周三","周四","周五","周六"];
+const state = {start:DATES[0], end:DATES[DATES.length-1], prov:"全部", res:"all", typ:"all", q:"", sk:null, sd:1};
+const RES = {dry:s=>s.m.dayRain===0, r1:s=>s.m.dayRain===1, r2:s=>s.m.dayRain===2, r3:s=>s.m.dayRain>=3};
 const $ = id => document.getElementById(id);
 
-function cellHTML(c){
-  const cls = c.dr ? "rain" : "";
-  const night = c.nr ? ' <span class="n">🌙'+c.nt+'</span>' : ' <span class="n">'+c.nt+'</span>';
-  return '<td class="'+cls+'">'+c.dn+night+'</td>';
+function wd(ds){const p=ds.split("-");return WEEK[new Date(+p[0],+p[1]-1,+p[2]).getDay()]}
+function selDates(){return DATES.filter(d=>d>=state.start && d<=state.end)}
+function derive(s){
+  let dayRain=0, precip=0, lo=999, hi=-999, dryAll=true, dryStrict=true;
+  for(const dt of DATES){
+    if(dt<state.start||dt>state.end) continue;
+    const c=s.cells[dt]; if(!c) continue;
+    if(c.dr){dayRain++;dryAll=false}
+    if(c.dr||c.nr)dryStrict=false;
+    precip+=c.pr;
+    for(const t of [c.td,c.tn]){
+      if(t===null) continue;
+      lo=Math.min(lo,t); hi=Math.max(hi,t);
+    }
+  }
+  return {dayRain, precip:Math.round(precip*10)/10, lo:lo===999?null:lo, hi:hi===-999?null:hi, dryAll, dryStrict};
+}
+let M = new Map();
+function recompute(){M = new Map(DATA.map(s=>[s,derive(s)]))}
+
+function cellHTML(dt,s){
+  const c = s.cells[dt];
+  if(!c) return '<td class="mut">—</td>';
+  const night = ' <span class="n">'+(c.nr?'🌙':'')+c.nt+'</span>';
+  return '<td class="'+(c.dr?'rain':'')+'">'+c.dn+night+'</td>';
+}
+function buildHead(){
+  let h = '<tr><th class="sortable hfix" data-k="name">站点</th><th class="hfix prov">省份</th><th>类型</th>';
+  for(const dt of selDates()) h += '<th>'+dt+'<br><small>'+wd(dt)+'</small></th>';
+  h += '<th class="sortable" data-k="dayRain">白天有雨(天)</th><th class="sortable" data-k="precip">累计降水</th><th>温度</th><th>结论</th></tr>';
+  $("thr").innerHTML = h;
+  document.querySelectorAll("th.sortable").forEach(th=>{
+    const k = th.dataset.k;
+    if(state.sk===k) th.innerHTML = th.innerHTML.replace(/[▲▼]/g,"").trimEnd() + (state.sd>0?" ▲":" ▼");
+    th.onclick = ()=>{
+      if(state.sk===k) state.sd = -state.sd; else {state.sk=k; state.sd=1;}
+      renderBody();
+    };
+  });
 }
 function rowsHTML(){
-  const q = state.q.trim();
-  let list = DATA.filter(s =>
-    (state.prov==="全部" || s.prov===state.prov) &&
-    (state.res==="all" || RES[state.res](s)) &&
-    (state.typ==="all" || (state.typ==="pref" ? s.pref : !s.pref)) &&
-    (!q || s.name.includes(q) || s.prov.includes(q)));
+  const nd = selDates().length, q = state.q.trim();
+  let list = DATA.filter(s=>{
+    const m = M.get(s);
+    return (state.prov==="全部" || s.prov===state.prov) &&
+      (state.res==="all" || RES[state.res]({m:m})) &&
+      (state.typ==="all" || (state.typ==="pref" ? s.pref : !s.pref)) &&
+      (!q || s.name.includes(q) || s.prov.includes(q));
+  });
   const by = {
     name:(a,b)=>a.name.localeCompare(b.name,"zh"),
-    dayRain:(a,b)=>a.dayRain-b.dayRain,
-    precip:(a,b)=>a.precip-b.precip
+    dayRain:(a,b)=>M.get(a).dayRain-M.get(b).dayRain,
+    precip:(a,b)=>M.get(a).precip-M.get(b).precip
   };
   if(state.sk){ list = list.slice().sort(by[state.sk]); if(state.sd<0) list.reverse(); }
-  else list = list.slice().sort((a,b)=>
-    (a.dryAll!==b.dryAll) ? (a.dryAll?-1:1) :
-    (a.pref!==b.pref) ? (a.pref?-1:1) :
-    (a.dayRain-b.dayRain) || (a.precip-b.precip) || a.name.localeCompare(b.name,"zh"));
+  else list = list.slice().sort((a,b)=>{
+    const ma=M.get(a), mb=M.get(b);
+    return (ma.dryAll!==mb.dryAll) ? (ma.dryAll?-1:1) :
+      (a.pref!==b.pref) ? (a.pref?-1:1) :
+      (ma.dayRain-mb.dayRain) || (ma.precip-mb.precip) || a.name.localeCompare(b.name,"zh");
+  });
   return list.map(s=>{
-    const cells = s.cells.map(cellHTML).join("");
-    const tag = s.dryAll ? '<span class="tag g">✅ 无雨</span>' : '<span class="tag b">☔ 有雨</span>';
+    const m = M.get(s);
+    const cells = selDates().map(dt=>cellHTML(dt,s)).join("");
+    const tag = m.dryAll ? '<span class="tag g">✅ 无雨</span>' : '<span class="tag b">☔ 有雨</span>';
     const typ = s.pref ? '<span class="tag p">地级市</span>' : '<span class="tag">县级</span>';
-    return '<tr class="'+(s.dryAll?"dry":"")+'">'+
+    const temp = m.lo===null ? '—' : m.lo+'~'+m.hi+'°C';
+    return '<tr class="'+(m.dryAll?"dry":"")+'">'+
       '<td class="name"><a href="'+s.url+'" target="_blank">'+s.name+'</a></td>'+
       '<td class="prov">'+s.prov+'</td><td>'+typ+'</td>'+cells+
-      '<td>'+(4-s.dayRain)+' / 4</td><td>'+s.precip+' mm</td><td>'+s.lo+'~'+s.hi+'°C</td><td>'+tag+'</td></tr>';
+      '<td>'+(nd-m.dayRain)+' / '+nd+'</td><td>'+m.precip+' mm</td><td>'+temp+'</td><td>'+tag+'</td></tr>';
   }).join("");
 }
-function render(){
+function renderBody(){
   $("tb").innerHTML = rowsHTML();
-  const n = $("tb").querySelectorAll("tr").length;
-  $("cnt").textContent = "显示 " + n + " / " + DATA.length + " 站";
+  $("cnt").textContent = "显示 " + $("tb").querySelectorAll("tr").length + " / " + DATA.length + " 站";
 }
-$("fprov").onchange = e=>{state.prov=e.target.value; render();};
-$("fres").onchange  = e=>{state.res=e.target.value; render();};
-$("ftyp").onchange  = e=>{state.typ=e.target.value; render();};
-$("fq").oninput     = e=>{state.q=e.target.value; render();};
-document.querySelectorAll("th.sortable").forEach(th=>{
-  th.onclick = ()=>{
-    const k = th.dataset.k;
-    if(state.sk===k) state.sd = -state.sd; else {state.sk=k; state.sd=1;}
-    document.querySelectorAll("th.sortable").forEach(t=>t.textContent=t.textContent.replace(/[▲▼]/g,"").trim());
-    th.innerHTML = th.textContent.replace(/[▲▼]/g,"").trim() + (state.sd>0?" ▲":" ▼");
-    render();
-  };
-});
-render();
+function renderStats(){
+  const rg = state.start === state.end ? state.start : state.start + " ~ " + state.end;
+  $("rglabel").textContent = rg;
+  $("herorange").textContent = rg;
+  let dryn=0, strict=[], extra=[];
+  for(const s of DATA){
+    const m = M.get(s);
+    if(m.dryAll){ dryn++; if(!m.dryStrict) extra.push(PROVSHORT[s.prov]+"·"+s.name); }
+  }
+  $("dryn").textContent = dryn;
+  const kp = PROVS.map(pv=>{
+    const list = DATA.filter(s=>s.prov===pv);
+    const dry = list.filter(s=>M.get(s).dryAll).length;
+    const pref = list.filter(s=>s.pref).length;
+    return '<div class="card'+(dry?" green":"")+'"><b>'+dry+' / '+list.length+'</b><span>'+pv+'无雨站 / 总站（地级市 '+pref+'）</span></div>';
+  }).join("");
+  $("kpiprov").outerHTML = '<div id="kpiprov" style="display:contents">'+kp+'</div>';
+  const dry = DATA.filter(s=>M.get(s).dryAll).sort((a,b)=>{
+    const ma=M.get(a), mb=M.get(b);
+    return (a.pref!==b.pref)?(a.pref?-1:1):(PROVIDX[a.prov]-PROVIDX[b.prov])|| (ma.precip-mb.precip) || a.name.localeCompare(b.name,"zh");
+  });
+  $("heroitems").innerHTML = dry.length ? dry.map(s=>{
+    const m = M.get(s);
+    return '<div class="heroitem"><b>'+PROVSHORT[s.prov]+'·'+s.name+'</b><span>'+s.prov+' · '+(s.pref?"地级市":"县级")+'</span>'+
+      '<em>'+m.lo+'~'+m.hi+'°C · 累计降水 '+m.precip+' mm</em></div>';
+  }).join("") : '<span class="mut">—</span>';
+  const nStrict = DATA.filter(s=>M.get(s).dryStrict).length;
+  $("strnote").innerHTML = (nStrict===dryn)
+    ? "备注：若把夜间降雨也计入，名单完全相同（"+nStrict+" 站）——所选范围内无“只下夜雨”的站点。"
+    : "备注：若把夜间降雨也计入，无雨站为 "+nStrict+" 站；白天口径下有夜间降雨的 "+dryn+" 站："+extra.join("、")+"。";
+  const dgs = selDates().map(dt=>{
+    let secs = "";
+    for(const pv of PROVS){
+      const dryc=[], wetc=[];
+      for(const s of DATA){
+        if(!s.pref || s.prov!==pv) continue;
+        const c = s.cells[dt];
+        (c && c.dr ? wetc : dryc).push(s.name);
+      }
+      const chips = a=>a.map(n=>'<span class="chip g">'+n+'</span>').join("");
+      const chipb = a=>a.map(n=>'<span class="chip b">'+n+'</span>').join("");
+      secs += '<p class="lbl">'+PROVSHORT[pv]+' ☀️无雨 '+dryc.length+' · 🌧️有雨 '+wetc.length+'</p><div>'+
+        (dryc.length?chips(dryc):'<span class="mut">—</span>')+'<span class="sep"></span>'+(wetc.length?chipb(wetc):'<span class="mut">—</span>')+'</div>';
+    }
+    return '<div class="daycard"><h3>'+dt+' '+wd(dt)+'（白天）</h3>'+secs+'</div>';
+  }).join("");
+  $("daygrid").innerHTML = dgs;
+}
+function renderAll(){ buildHead(); renderStats(); renderBody(); }
+
+// 日期范围选择器：起始不早于昨日（数据源自今日起，选项即数据实际提供的日期）
+for(const id of ["dfrom","dto"]){
+  $(id).innerHTML = DATES.map(d=>'<option value="'+d+'">'+d+' '+wd(d)+'</option>').join("");
+}
+$("dfrom").value = state.start; $("dto").value = state.end;
+$("dfrom").onchange = e=>{
+  state.start = e.target.value;
+  if(state.end < state.start){ state.end = state.start; $("dto").value = state.end; }
+  recompute(); renderAll();
+};
+$("dto").onchange = e=>{
+  state.end = e.target.value;
+  if(state.end < state.start){ state.start = state.end; $("dfrom").value = state.start; }
+  recompute(); renderAll();
+};
+$("fprov").innerHTML = '<option>全部</option>' + PROVS.map(p=>'<option>'+p+'</option>').join("");
+$("fprov").onchange = e=>{state.prov=e.target.value; renderBody();};
+$("fres").onchange  = e=>{state.res=e.target.value; renderBody();};
+$("ftyp").onchange  = e=>{state.typ=e.target.value; renderBody();};
+$("fq").oninput     = e=>{state.q=e.target.value; renderBody();};
+recompute(); renderAll();
 </script>
 </body>
 </html>
 """
 
 html = (html.replace("__DATA__", DATA_JSON)
+            .replace("__DATES__", DATES_JSON)
             .replace("__PUBLISH__", pub)
             .replace("__GEN__", GEN)
             .replace("__TOTAL__", str(total))
             .replace("__PREFN__", str(pref_n))
             .replace("__PROVLINE__", prov_line)
-            .replace("__KPIPROV__", kpi_prov)
-            .replace("__DRYN__", str(len(dry)))
-            .replace("__STRICTNOTE__", strict_note)
-            .replace("__HEADERS__", headers)
-            .replace("__DRYHERO__", dry_hero)
-            .replace("__DAYCARDS__", "".join(daycards))
-            .replace("__PROVOPTS__", prov_options))
+            .replace("__RANGE0__", DATES[0] + " ~ " + DATES[-1]))
 
 out = "index.html"
 open(out, "w", encoding="utf-8").write(html)
-print("written", out, f"{len(html)} chars;", f"total={total}, dry={len(dry)}, strict={len(strict)}, publish={pub}")
+print("written", out, f"{len(html)} chars;", f"total={total}, dates={DATES[0]}~{DATES[-1]} ({len(DATES)}天), publish={pub}")
